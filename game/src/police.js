@@ -5,6 +5,7 @@
 // player and slow down as they arrive, so they stay on top of a runner
 // instead of overshooting them.
 
+import { THREE } from './three-shim.js';
 import { CFG, clamp } from './config.js';
 import { makeCarMesh } from './cars.js';
 import { pushOutOfBuildings } from './city.js';
@@ -119,4 +120,176 @@ export function updatePolice(police, player, dt, colliders, hooks) {
       }
     }
   }
+}
+
+// ---- Police helicopter -------------------------------------------------
+// VISUAL ONLY: the heli never busts, never rams, never damages the
+// player. It joins the chase once the heat hits CFG.heliMinWanted
+// (3 stars) and leaves when the heat drops below it — pure air support
+// theatre, a circling spotlight over the player's car. No real THREE
+// lights: the software renderer cannot afford them, so the beam is a
+// translucent cone mesh and the pool of light a flat bright circle.
+
+export function createHeli(scene) {
+  const group = new THREE.Group();
+  // The body group carries the heading rotation; the outer group stays
+  // unrotated so the spotlight cone/spot (aimed in world space every
+  // frame) are never skewed by the heading.
+  const body = new THREE.Group();
+  group.add(body);
+
+  const hullMat = new THREE.MeshLambertMaterial({ color: 0x8b98a8 }); // pale grey-blue: reads against the dusk sky
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x14161f });
+  const redMat = new THREE.MeshLambertMaterial({ color: 0xc22a2a });
+
+  // Chunky body, readable at ~15 m in a 1280x720 frame.
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.4, 4.6), hullMat);
+  hull.position.y = 0;
+  body.add(hull);
+  // Glass nose.
+  const glass = new THREE.Mesh(
+    new THREE.BoxGeometry(1.9, 0.7, 1.2),
+    new THREE.MeshLambertMaterial({ color: 0x9fd8e8 }),
+  );
+  glass.position.set(0, 0.45, 1.6);
+  body.add(glass);
+  // Red stripe down the flanks (slightly wider than the hull so it reads).
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.26, 0.38, 4.0), redMat);
+  stripe.position.y = 0.1;
+  body.add(stripe);
+  // Tail boom + fin.
+  const boom = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 3.4), hullMat);
+  boom.position.set(0, 0.25, -3.8);
+  body.add(boom);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.3, 0.9), redMat);
+  fin.position.set(0, 0.7, -5.3);
+  body.add(fin);
+  // Skids: two bars on four short struts.
+  for (const sx of [-0.9, 0.9]) {
+    const skid = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 4.0), darkMat);
+    skid.position.set(sx, -1.0, 0);
+    body.add(skid);
+    for (const sz of [-1.2, 1.2]) {
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, 0.15), darkMat);
+      strut.position.set(sx, -0.72, sz);
+      body.add(strut);
+    }
+  }
+  // Spotlight bulb under the nose (unlit white = always bright).
+  const bulb = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.3, 0.5),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }),
+  );
+  bulb.position.set(0, -0.85, 1.9);
+  body.add(bulb);
+
+  // Main rotor on a mast: two crossed blades read as a spinning disc.
+  const mast = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.16, 0.9, 8),
+    darkMat,
+  );
+  mast.position.y = 1.05;
+  body.add(mast);
+  const rotor = new THREE.Group();
+  rotor.position.y = 1.55;
+  const bladeMat = new THREE.MeshLambertMaterial({ color: 0x1a1d26 });
+  const bladeA = new THREE.Mesh(new THREE.BoxGeometry(9.5, 0.1, 0.55), bladeMat);
+  rotor.add(bladeA);
+  const bladeB = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.1, 9.5), bladeMat);
+  rotor.add(bladeB);
+  body.add(rotor);
+
+  // Small tail rotor on the boom's port side, spinning around X.
+  const tailRotor = new THREE.Group();
+  tailRotor.position.set(0.5, 0.5, -5.2);
+  const tailBlade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, 0.25), bladeMat);
+  tailRotor.add(tailBlade);
+  body.add(tailRotor);
+
+  // Spotlight beam: narrow at the heli, wide at the ground. Height is
+  // the straight-line heli-to-player distance at the configured orbit.
+  // Kept slim (3.5 m base, faint) on purpose: a fat beam from the low
+  // chase camera washes out the whole frame.
+  const beamLen = Math.hypot(CFG.heliOrbit, CFG.heliAltitude);
+  const cone = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3, 3.5, beamLen, 12, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff2b0, transparent: true, opacity: 0.12,
+      side: THREE.DoubleSide, depthWrite: false,
+    }),
+  );
+  group.add(cone);
+  // Bright pool of light on the ground under the player. Radius matches
+  // the cone's base so the beam lands exactly inside the pool.
+  const spot = new THREE.Mesh(
+    new THREE.CircleGeometry(4, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff2b0, transparent: true, opacity: 0.25,
+      side: THREE.DoubleSide, depthWrite: false,
+    }),
+  );
+  spot.rotation.x = -Math.PI / 2;
+  group.add(spot);
+
+  group.visible = false;
+  scene.add(group);
+  return {
+    pos: { x: 0, z: 0 },
+    y: CFG.heliAltitude,
+    angle: 0,
+    orbitAngle: 0,
+    active: false,
+    group, rotor, cone, spot,
+    body, tailRotor,
+  };
+}
+
+// One frame of helicopter. Spawns when wanted reaches CFG.heliMinWanted,
+// despawns below it. Returns 'spawned' exactly once, on the frame the
+// heli appears, so the caller can toast "AIR SUPPORT"; otherwise null.
+export function updateHeli(heli, playerPos, wanted, dt, time) {
+  if (wanted >= CFG.heliMinWanted && !heli.active) {
+    heli.active = true;
+    heli.group.visible = true;
+    // Start the orbit due north of the player so it is in view at once.
+    heli.orbitAngle = -Math.PI / 2;
+    // Fall through and position it this same frame.
+    positionHeli(heli, playerPos, dt, time);
+    return 'spawned';
+  }
+  if (wanted < CFG.heliMinWanted && heli.active) {
+    heli.active = false;
+    heli.group.visible = false;
+    return null;
+  }
+  if (!heli.active) return null;
+  positionHeli(heli, playerPos, dt, time);
+  return null;
+}
+
+function positionHeli(heli, playerPos, dt, time) {
+  heli.orbitAngle += CFG.heliAngularSpeed * dt;
+  // Gentle bob so the hover never looks frozen.
+  heli.y = CFG.heliAltitude + Math.sin(time * 1.5) * 1.2;
+  heli.pos.x = playerPos.x + Math.cos(heli.orbitAngle) * CFG.heliOrbit;
+  heli.pos.z = playerPos.z + Math.sin(heli.orbitAngle) * CFG.heliOrbit;
+  heli.group.position.set(heli.pos.x, heli.y, heli.pos.z);
+  // Face the direction of travel (tangent to the orbit).
+  heli.angle = Math.atan2(-Math.sin(heli.orbitAngle), Math.cos(heli.orbitAngle));
+  heli.body.rotation.y = heli.angle;
+  heli.rotor.rotation.y += dt * 20;
+  heli.tailRotor.rotation.x += dt * 30;
+
+  // Aim the beam at the player: cone/spot are children of the
+  // (unrotated) group, so their local offsets are world offsets.
+  const lx = playerPos.x - heli.pos.x;
+  const ly = -heli.y;
+  const lz = playerPos.z - heli.pos.z;
+  const len = Math.hypot(lx, ly, lz) || 1;
+  heli.cone.position.set(lx / 2, ly / 2, lz / 2);
+  heli.cone.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(-lx / len, -ly / len, -lz / len),
+  );
+  heli.spot.position.set(lx, -heli.y + 0.15, lz);
 }

@@ -51,7 +51,9 @@ dependency list.
 | Shift | Sprint on foot |
 | E | Enter or exit a car (near one); hold E in a gold `$` ring to rob |
 | F | Punch a nearby pedestrian |
+| H | Horn while driving |
 | Mouse drag | Orbit the camera |
+| Mouse wheel | Zoom the chase camera in and out |
 | P / Esc | Pause · M mute |
 
 ## What is in the game
@@ -59,34 +61,43 @@ dependency list.
 - **The city** — a 5×5 grid of blocks between 6 roads each way, towers from
   8 to 40 m tall with glowing lit windows, neon signs (HOTEL, CASINO, 24/7,
   BAY BANK), street lamps, palm trees, and a beach with the ocean along the
-  south edge. It is dusk: a purple-orange sky, warm fog and a low warm sun.
+  south edge — plus a wooden boardwalk pier that juts out into the sea with
+  railings, lamps and a glowing NEON BAY PIER sign. It is dusk: a
+  purple-orange sky, warm fog and a low warm sun.
 - **On foot** — a third-person character with a walk-cycle animation, sprint,
-  and solid building collision.
+  and solid building collision. You can walk the whole pier to its end.
 - **Driving** — arcade handling with a chase camera and the speed in the HUD.
-  Seven traffic cars cruise the lanes and turn at intersections; four cars
-  sit parked. Press E near a traffic car to pull the driver out and take it
-  (+1 wanted star).
+  Seven traffic cars cruise the lanes and turn at intersections; they keep
+  a gap to the car ahead, wait at busy intersections and stop for you in the
+  road. Four cars sit parked. Press E near a traffic car to pull the driver
+  out and take it (+1 wanted star). H honks, hard steering at speed skids,
+  and the mouse wheel zooms the camera.
 - **Pedestrians** — twelve people walk the sidewalks, wander, and run when
   they are scared or a car gets too close. F punches one down (+1 star).
 - **Wanted level, 0–5 stars** — a robbery adds 2, a carjack 1, a punch 1.
   One to four NBPD cars spawn and chase you, light bars flashing, siren
-  wailing; they ram your car and run you down on foot. Stay clean and the
-  heat cools one star every 20 seconds. If the police hold you on foot you
-  are **BUSTED** — half your cash is gone and you wake up at the beach. At
-  HP 0 you are **WASTED**.
-- **The score** — three robbery targets, each marked by a floating `$` beacon
-  and a minimap marker: Casa Oro Jewelers ($800–1,500), Bay Federal Bank
-  ($1,000–1,500) and the 24/7 Mini-Mart ($500–900). Stand in the ring and
-  hold E for 3 seconds. Eight green cash bags worth $100 each are scattered
-  around the city. Reach $5,000 and you get the **SCORE COMPLETE** screen
-  with your cash, robberies, bags, crimes and time. Your best cash is kept
-  in localStorage.
-- **HUD and minimap** — cash, wanted stars, health bar, speed, the current
-  objective, a robbery progress bar, toasts, and a 180 px top-down minimap
-  showing roads, the player, traffic, police, mission markers and cash bags.
-- **Sound** — WebAudio synth only: an engine hum that rises with speed, a
-  two-tone siren while you are wanted, a pickup blip, a robbery chime, a
-  crash thud, and busted/win jingles.
+  wailing; they ram your car and run you down on foot. At 3 stars a police
+  helicopter joins them, orbiting overhead with a spotlight. Stay clean and
+  the heat cools one star every 20 seconds. If the police hold you on foot
+  you are **BUSTED** — half your cash is gone and you wake up at the beach.
+  At HP 0 you are **WASTED**.
+- **The score — three jobs, in order** — the robberies are now a chain with
+  a tracker in the HUD: 1. **The Gold Touch** (Casa Oro Jewelers,
+  $800–1,500), 2. **The Vault Job** (Bay Federal Bank, $1,000–1,500),
+  3. **The Quick Score** (24/7 Mini-Mart, $500–900). Only the current job's
+  `$` beacon shows and only it can be robbed; finishing a job pays a $150
+  bonus and unlocks the next. Stand in the ring and hold E for 3 seconds.
+  Eight green cash bags worth $100 each are scattered around the city.
+  Reach $5,000 and you get the **SCORE COMPLETE** screen with your cash,
+  robberies, bags, crimes and time. Your best cash is kept in localStorage.
+- **HUD and minimap** — cash with a $X / $5,000 goal bar, the mission
+  tracker, wanted stars, health bar, speed, the current objective, a
+  robbery progress bar, toasts, and a 180 px top-down minimap showing roads,
+  the player, traffic, police, the helicopter, mission markers and cash bags.
+- **Sound** — WebAudio synth only: a procedural music loop (112 BPM,
+  Am–F–C–G), an engine hum that rises with speed, a two-tone siren while
+  you are wanted, a pickup blip, a robbery chime, a crash thud, a skid
+  scrape, a horn, footsteps, and busted/win jingles.
 
 ## Repository layout
 
@@ -101,17 +112,20 @@ main.ts                hands game/ + screenshots/ to make.fun (Node 22, stdlib o
 serve.ts               static server for local play (localhost:8080)
 shots.json             the 4 screenshot scenes and their ?shot= queries
 tools/                 shoot.mjs (screenshot + playtest harness),
-                       function-test.mjs (11 scripted gameplay checks),
+                       function-test.mjs (20 scripted gameplay checks),
                        fps.mjs (headless FPS probe)
 ```
 
 Verification: `tools/shoot.mjs` drives the game in headless Chromium
 (SwiftShader WebGL) — all four `?shot=` scenes reach `window.__shotReady`
-with 0 console errors, 0 page errors and 0 failed requests, and a live
-playtest confirms Enter starts the game and WASD moves the player.
-`tools/function-test.mjs` passes 11/11 scripted checks (robbery pays, police
+with 0 console errors, 0 page errors and 0 failed requests, each shot
+asserted 1280×720 with the mission tracker and goal bar on screen, and a
+live playtest confirms Enter starts the game and WASD moves the player.
+`tools/function-test.mjs` passes 20/20 scripted checks (robbery pays, police
 spawn, carjack, driving, punch, cash bag, win at $5,000, BUSTED halves cash,
-WASTED at HP 0). The full test report lives in `BUILD-LOG.md`.
+WASTED at HP 0, plus the round-4 mission chain, helicopter, traffic AI,
+pier walk, HUD goal bar, wheel zoom, footsteps and toast text). The full
+test report lives in `BUILD-LOG.md`.
 
 ## License
 

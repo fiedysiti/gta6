@@ -45,6 +45,23 @@ export function drawMinimap(canvas, s) {
     g.fillStyle = '#ffd23d';
     g.fillText('$', toMap(t.x), toMap(t.z));
   }
+  // Mission number (1/2/3) next to the active '$' marker, up and right
+  // of it so it never covers the glyph. Read from currentIndex when the
+  // game provides it; otherwise fall back to the first unrobbed target.
+  const mi = (s.missions && typeof s.missions.currentIndex === 'number')
+    ? s.missions.currentIndex
+    : s.missions.targets.findIndex((t) => !t.robbed);
+  if (mi >= 0 && mi < s.missions.targets.length && !s.missions.targets[mi].robbed) {
+    const t = s.missions.targets[mi];
+    const nx = toMap(t.x) + 10, ny = toMap(t.z) - 8;
+    // Dark outline first so the gold numeral stays legible over roads.
+    g.strokeStyle = '#1a1420';
+    g.lineWidth = 3;
+    g.font = 'bold 11px Arial';
+    g.strokeText(String(mi + 1), nx, ny);
+    g.fillStyle = '#ffd23d';
+    g.fillText(String(mi + 1), nx, ny);
+  }
   // Traffic.
   g.fillStyle = '#ffe14d';
   for (const c of s.traffic) {
@@ -59,6 +76,15 @@ export function drawMinimap(canvas, s) {
   g.fillStyle = red ? '#ff3333' : '#3388ff';
   for (const u of s.police) {
     g.beginPath(); g.arc(toMap(u.pos.x), toMap(u.pos.z), 3.5, 0, Math.PI * 2); g.fill();
+  }
+  // Police helicopter: orange diamond, only while it is overhead.
+  if (s.heli && s.heli.active) {
+    g.save();
+    g.translate(toMap(s.heli.pos.x), toMap(s.heli.pos.z));
+    g.rotate(Math.PI / 4);
+    g.fillStyle = '#ff8c1a';
+    g.fillRect(-2.5, -2.5, 5, 5);
+    g.restore();
   }
   // Player arrow, rotated to the facing angle.
   const px = toMap(s.player.pos.x), pz = toMap(s.player.pos.z);

@@ -49,6 +49,9 @@ export function createPlayer(scene) {
     parts: fig,
     walkPhase: 0,
     moving: false,
+    stepped: false, // overwritten every frame by updatePlayerOnFoot:
+    // true only on the frame the walk phase crosses a multiple of PI;
+    // the loop reads it and calls sound.footstep() for that step
   };
 }
 
@@ -63,18 +66,27 @@ export function updatePlayerOnFoot(player, input, dt, colliders, camYaw) {
   const len = Math.hypot(mx, mz);
   player.moving = len > 0.01;
   if (player.moving) {
+    const prevStep = Math.floor(player.walkPhase / Math.PI);
     mx /= len; mz /= len;
     player.pos.x += mx * speed * dt;
     player.pos.z += mz * speed * dt;
     player.angle = Math.atan2(mx, mz);
     player.walkPhase += dt * speed * 1.7;
+    // One footstep per half walk-cycle: the phase crossed a multiple of PI.
+    player.stepped = Math.floor(player.walkPhase / Math.PI) > prevStep;
+  } else {
+    player.stepped = false;
   }
   player.pos.x = clamp(player.pos.x, -168, 168);
-  player.pos.z = clamp(player.pos.z, -168, 166);
+  // South edge: the beach ends at z 166, but the pier runs to z 197 —
+  // let Rex walk the boardwalk to its end (and wade the shallows
+  // beside it) instead of hitting an invisible wall at the sand.
+  player.pos.z = clamp(player.pos.z, -168, 197);
   pushOutOfBuildings(player.pos, CFG.playerRadius, colliders);
   player.mesh.position.set(player.pos.x, 0, player.pos.z);
   player.mesh.rotation.y = player.angle;
-  const swing = player.moving ? Math.sin(player.walkPhase) * 0.55 : 0;
+  // Sprinting swings the limbs 25% wider than walking.
+  const swing = player.moving ? Math.sin(player.walkPhase) * 0.55 * (input.sprint ? 1.25 : 1) : 0;
   player.parts.legL.rotation.x = swing;
   player.parts.legR.rotation.x = -swing;
   player.parts.armL.rotation.x = -swing * 0.8;

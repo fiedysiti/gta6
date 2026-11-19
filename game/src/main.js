@@ -5,7 +5,8 @@
 // object directly (window.__nbGame), so its shape is a contract:
 //   game.state  — screen, cash, wanted, wantedTimer, hp, robberies,
 //                 pickups, crimes, time, player, traffic, parked,
-//                 peds, police, missions, camYaw, camPitch, ...
+//                 peds, police, heli, missions, camYaw, camPitch,
+//                 zoomAccum, ...
 //   game.update(dt, input?) — one fixed step; input defaults to live keys
 //   game.render() — camera, renderer, HUD, minimap
 //   game.start()  — (re)start a run from the beach
@@ -18,7 +19,7 @@ import { createSound } from './sound.js';
 import { buildCity } from './city.js';
 import { createPlayer, updatePlayerOnFoot, createPedestrians, updatePedestrians } from './player.js';
 import { createTraffic, createParked, updateTraffic, driveCar } from './cars.js';
-import { maintainPolice, updatePolice } from './police.js';
+import { maintainPolice, updatePolice, createHeli, updateHeli } from './police.js';
 import { createMissions, resetMissions, animateMissions, updateMissions } from './missions.js';
 import { createHud } from './hud.js';
 import { drawMinimap } from './minimap.js';
@@ -45,6 +46,7 @@ export function createGame(seed) {
   const peds = createPedestrians(scene, rng, colliders);
   const missions = createMissions(scene, rng, colliders);
   const police = [];
+  const heli = createHeli(scene);
   const sound = createSound();
   const hud = createHud();
   const input = createInput(renderer.domElement);
@@ -76,9 +78,10 @@ export function createGame(seed) {
     camYaw: 0,
     camPitch: 0.38,
     orbit: 0.6,
+    zoomAccum: 0, // mouse-wheel zoom, clamped in update()
     ramCooldown: 0,
     punchCooldown: 0,
-    player, traffic, parked, peds, police, missions,
+    player, traffic, parked, peds, police, missions, heli,
   };
 
   function clearPolice() { maintainPolice(police, scene, player.pos, 0, rng); }
@@ -110,6 +113,7 @@ export function createGame(seed) {
     state.wanted = 0;
     state.wantedTimer = 0;
     clearPolice();
+    updateHeli(heli, player.pos, 0, 0, state.time); // air support leaves with the bust
     respawn();
     state.screen = 'busted';
     sound.busted();
@@ -143,6 +147,7 @@ export function createGame(seed) {
     state.ramCooldown = 0;
     state.punchCooldown = 0;
     clearPolice();
+    updateHeli(heli, player.pos, 0, 0, state.time); // fresh run, no heli overhead
     resetMissions(missions);
     state.camYaw = 0;
     state.camPitch = 0.38;
@@ -206,10 +211,11 @@ export function createGame(seed) {
     const input = inputOverride || input.snapshot();
     const pressed = input.pressed || new Set();
     if (pressed.has('KeyM')) toggleMute();
+    if (pressed.has('KeyH')) sound.horn();
 
     if (s.screen === 'title') {
       s.orbit += dt * 0.05;
-      updateTraffic(traffic, dt, rng);
+      updateTraffic(traffic, dt, rng, null);
       updatePedestrians(peds, dt, colliders, rng, null, 0);
       if (pressed.has('Enter')) startGame();
       return;
@@ -226,7 +232,8 @@ export function createGame(seed) {
     // --- play ---
     s.time += dt;
     s.camYaw -= (input.dragDX || 0) * 0.005;
-    s.camPitch = clamp(s.camPitch + (input.dragDY || 0) * 0.002, 0.12, 0.9);
+    s.camPitch = clamp(s.camPitch + (input.dragDY || 0) * 0.002, 0.0, 0.9);
+    s.zoomAccum = clamp(s.zoomAccum + (input.wheelDY || 0) * 0.001, -0.3, 0.6);
     if (pressed.has('KeyP') || pressed.has('Escape')) {
       s.screen = 'paused';
       return;
@@ -272,6 +279,7 @@ export function createGame(seed) {
 
     if (player.onFoot) {
       updatePlayerOnFoot(player, input, dt, colliders, s.camYaw);
+      if (player.stepped) { sound.footstep(); player.stepped = false; }
     } else {
       const res = driveCar(player.car, input, dt, colliders);
       player.pos.x = player.car.pos.x;
@@ -283,9 +291,10 @@ export function createGame(seed) {
         sound.thud();
         hud.toast(`Crash! -${dmg} HP`);
       }
+      if (Math.abs(input.axis.x) > 0.6 && Math.abs(player.car.speed) > CFG.skidSpeed) sound.skid();
     }
 
-    updateTraffic(traffic, dt, rng);
+    updateTraffic(traffic, dt, rng, player.pos);
     updatePedestrians(peds, dt, colliders, rng, player.pos, s.wanted);
 
     maintainPolice(police, scene, player.pos, s.wanted, rng);
@@ -300,6 +309,9 @@ export function createGame(seed) {
         hud.toast(`NBPD rammed you! -${dmg} HP`);
       },
     });
+    // Air support: the helicopter circles overhead from 3 stars up.
+    const heliEvent = updateHeli(heli, player.pos, s.wanted, dt, s.time);
+    if (heliEvent === 'spawned') hud.toast('AIR SUPPORT — NBPD helicopter overhead');
     if (s.screen !== 'play') return; // busted mid-frame
 
     const { events, active } = updateMissions(missions, player, !!input.holdingE, dt, rng, s);
@@ -313,6 +325,9 @@ export function createGame(seed) {
         s.wantedTimer = CFG.decaySeconds;
         sound.chime();
         hud.toast(`${ev.target.name} robbed! +$${ev.payout.toLocaleString('en-US')}`);
+      } else if (ev.type === 'mission-complete') {
+        s.cash += ev.bonus;
+        hud.toast(`Job complete: ${ev.mission.name}! +$${ev.bonus} bonus`);
       } else if (ev.type === 'bag') {
         s.cash += ev.payout;
         s.pickups += 1;
@@ -325,6 +340,7 @@ export function createGame(seed) {
     if (s.cash >= CFG.goalCash) { doWin(); return; }
     if (s.hp <= 0) { s.hp = 0; doWasted(); return; }
 
+    sound.music(s.screen === 'play', dt);
     sound.engine(player.onFoot ? 0 : player.car.speed, !player.onFoot);
     sound.siren(s.wanted > 0, dt);
   }
@@ -335,7 +351,7 @@ export function createGame(seed) {
       camera.position.set(Math.cos(s.orbit) * 95, 42, Math.sin(s.orbit) * 95);
       camera.lookAt(0, 10, 0);
     } else {
-      const dist = s.player.onFoot ? 9 : 12.5;
+      const dist = (s.player.onFoot ? 9 : 12.5) * clamp(1 + s.zoomAccum, 0.7, 1.6);
       const hd = dist * Math.cos(s.camPitch);
       camera.position.set(
         s.player.pos.x + Math.sin(s.camYaw) * hd,

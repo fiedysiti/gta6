@@ -11,7 +11,7 @@
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for
 // /output:  MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -40,3 +40,9 @@ const dossier = buildDossier(outDir, {
   game_path_max_bytes: 1000,
 });
 writeFileSync(join(outDir, 'dossier.json'), dossier);
+
+// Small build summary on stdout so a local run shows what was packed.
+const shotCount = existsSync(join(repoRoot, 'screenshots'))
+  ? readdirSync(join(repoRoot, 'screenshots')).filter((f) => /\.(jpe?g|png|webp)$/i.test(f)).length
+  : 0;
+console.log(`NEON BAY dossier: ${dossier.length} bytes, ${shotCount} screenshot(s) -> ${outDir}`);

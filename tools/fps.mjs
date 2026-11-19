@@ -40,7 +40,14 @@ try {
     requestAnimationFrame(count);
   }));
   const gameTime = await page.evaluate(() => +window.__nbGame.state.time.toFixed(1));
-  console.log(`fps=${framesPerSecond} gameTimeAfter5s=${gameTime}`);
+  // One synchronous render() on the same page: the cost of a single
+  // frame without the loop overhead, so a slowdown shows up here first.
+  const singleRenderMs = await page.evaluate(() => {
+    const t0 = performance.now();
+    window.__nbGame.render();
+    return +(performance.now() - t0).toFixed(1);
+  });
+  console.log(`fps=${framesPerSecond} gameTimeAfter5s=${gameTime} singleRenderMs=${singleRenderMs}`);
 } finally {
   await browser.close();
   devServer.kill();

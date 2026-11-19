@@ -33,7 +33,9 @@ Then open that address in a desktop browser.
 | Shift | Sprint while on foot |
 | E | Get in or out of a nearby car; hold E inside a gold `$` ring to rob a target |
 | F | Punch the nearest pedestrian |
+| H | Horn while driving |
 | Mouse drag | Orbit the camera around the player |
+| Mouse wheel | Zoom the chase camera in and out |
 | P / Esc | Pause |
 | M | Mute |
 
@@ -46,7 +48,11 @@ windows from canvas textures; neon signs read HOTEL, CASINO, 24/7 and
 BAY BANK. Street lamps, palm trees, a purple-orange gradient sky dome,
 warm fog and a low warm sun with hemisphere light give it the dusk
 look. Road markings, pavement slabs, lamps and palms are merged into
-InstancedMeshes, which keeps the scene near 230 draw calls.
+InstancedMeshes, which keeps the scene near 250 draw calls. A wooden
+boardwalk pier juts 44 m out into the ocean from the south beach,
+with plank decking, railings, lamps and a glowing NEON BAY PIER sign
+at its end — the beach and the sea are part of normal play now, not a
+corner of the map you never visit.
 
 ## Systems
 
@@ -58,7 +64,13 @@ building footprints.
 reverse — with a chase camera and speed shown in the HUD. Seven
 traffic cars follow the road lanes and turn at intersections. Four
 cars are parked. Pressing E beside a traffic car pulls its driver out
-and puts you behind the wheel; that costs +1 wanted star.
+and puts you behind the wheel; that costs +1 wanted star. The
+traffic keeps a bumper gap to the car ahead (it slows instead of
+overlapping), waits instead of piling into an occupied intersection,
+and stops for the player standing in the road; lanes follow
+right-hand traffic, so two cars never meet head-on in one lane. H
+sounds the horn, hard steering at speed skids, and the mouse wheel
+zooms the chase camera.
 
 **Pedestrians.** Twelve of them walk the sidewalks, wander, and flee
 when the heat is on or a car gets close. Punching one down with F
@@ -67,32 +79,42 @@ costs +1 star.
 **Wanted level, 0–5 stars.** Robbery adds 2 stars, carjacking 1,
 punching 1. Once wanted, 1–4 NBPD cars spawn and chase, with flashing
 light bars and a two-tone siren; they ram your car and run you down on
-foot. One star fades per 20 s without a new crime. If a police car
-stays in contact with you on foot for about 0.9 s you are **BUSTED**:
-you lose half your cash and wake up at the beach with the heat reset.
-Your HP is 100; crashes and rams damage it, and HP 0 means **WASTED**.
-Both end screens restart with Enter.
+foot. At 3 stars and up a police helicopter joins them: it orbits
+overhead with a spotlight cone and a pool of light on the ground, and
+the game toasts AIR SUPPORT. One star fades per 20 s without a new
+crime. If a police car stays in contact with you on foot for about
+0.9 s you are **BUSTED**: you lose half your cash and wake up at the
+beach with the heat reset. Your HP is 100; crashes and rams damage
+it, and HP 0 means **WASTED**. Both end screens restart with Enter.
 
-**The score.** Three robbery targets carry floating `$` beacons and
-minimap markers: Casa Oro Jewelers ($800–1,500), Bay Federal Bank
-($1,000–1,500) and 24/7 Mini-Mart ($500–900). Hold E for 3 s inside
-the ring to rob one. Eight green cash bags worth $100 each are
-scattered around the city. Hit $5,000 and the **SCORE COMPLETE** win
-screen shows cash, robberies, bags, crimes and time. Your best cash
-total is kept in localStorage.
+**The score — a three-job chain.** The three robbery targets are now
+one story, run in order: 1. **The Gold Touch** (Casa Oro Jewelers,
+$800–1,500), 2. **The Vault Job** (Bay Federal Bank, $1,000–1,500),
+3. **The Quick Score** (24/7 Mini-Mart, $500–900). Only the current
+job's `$` beacon shows, and only it can be robbed; finishing a job
+pays a $150 completion bonus and unlocks the next. Hold E for 3 s
+inside the ring to rob one. Eight green cash bags worth $100 each
+are scattered around the city. Hit $5,000 and the **SCORE COMPLETE**
+win screen shows cash, robberies, bags, crimes and time. Your best
+cash total is kept in localStorage.
 
-**HUD and minimap.** Cash, wanted stars, a health bar, speed, the
-current objective, a robbery progress bar, mission toasts, a controls
-hint, pause/mute, and title, pause, BUSTED, WASTED and win screens.
-The 180 px minimap is a top-down canvas: roads, blocks, ocean, a
-player arrow, traffic in yellow, police in red/blue, mission `$`
-markers and cash bags in green.
+**HUD and minimap.** Cash, a money-goal bar ($X / $5,000), a mission
+tracker (MISSION 1/3 — The Gold Touch: Casa Oro Jewelers), wanted
+stars, a health bar, speed, the current objective, a robbery progress
+bar, mission toasts, a controls hint, pause/mute, and title, pause,
+BUSTED, WASTED and win screens. Toasts now stay up for 5 s — long
+enough to read while driving. The 180 px minimap is a top-down
+canvas: roads, blocks, ocean, a player arrow, traffic in yellow,
+police in red/blue, the active mission `$` with its job number, the
+helicopter as an orange diamond, and cash bags in green.
 
-**Sound.** WebAudio synthesis only — no audio files at all. The
-engine hum rises with speed, a two-tone siren runs while you are
-wanted, and there are blips for pickups, a chime for robberies, a
-thud for crashes, and jingles for busted and win. M or the mute
-button silences it.
+**Sound.** WebAudio synthesis only — no audio files at all. A
+procedural music loop (112 BPM, Am–F–C–G pad and bass with a
+fifth-walk melody) plays while you are in the game, the engine hum
+rises with speed, a two-tone siren runs while you are wanted, and
+there are blips for pickups, a chime for robberies, a thud for
+crashes, a skid scrape, a horn, footsteps on foot, and jingles for
+busted and win. M or the mute button silences it.
 
 ## Source layout
 
@@ -114,15 +136,21 @@ game/src/shots.js          deterministic ?shot= staging
 game/src/main.js           game state, main loop, screens, win/busted/wasted
 game/src/three-shim.js     re-exports window.THREE for ES modules
 tools/shoot.mjs            screenshot + live playtest harness
-tools/function-test.mjs    11 scripted gameplay checks
+tools/function-test.mjs    20 scripted gameplay checks
 tools/fps.mjs              headless FPS probe
 ```
 
-Gate check (2026-11-19): `game/` holds 16 files totalling 712 KiB
-(limits: 993 files / 48 MiB); `game/index.html` is 5,715 bytes
-(limit 1 MiB); 4 screenshots at 1280×720, 64–79 KiB each
-(limit 256 KiB). `MAKEFUN_OUTPUT_DIR=/tmp/nb-out node main.ts`
-builds the dossier without errors.
+Gate check (2026-11-19, round 4): `game/` holds 18 files and
+directories totalling 747,633 bytes (limits: 993 / 48 MiB);
+`game/index.html` is 2,023 bytes (limit 1 MiB); 4 screenshots at
+1280×720, 74–108 KiB each (limit 256 KiB, long side ≤ 1280,
+short side ≥ 480); the dossier `out/dossier.json` is 576,172 bytes
+(limit 1.5 MiB) with a 115,363-byte text outline (limit 163,840).
+`MAKEFUN_OUTPUT_DIR=out node main.ts` builds the dossier without
+errors. The sealed gate scorer is not published in the kit, so
+`grade-local` cannot run it locally — it prints that the house
+grades it from its competition directory; the limits above were
+checked against the built dossier by hand and all pass.
 
 ## Screenshots
 
@@ -133,29 +161,57 @@ paints twice and sets `window.__shotReady`. All four use
 
 | File | What it shows |
 | --- | --- |
-| `screenshots/1-start.jpg` (64 KiB) | Title screen over the city at dusk |
-| `screenshots/2-play.jpg` (74 KiB) | On foot at the Casa Oro `$` beacon, HUD + minimap |
-| `screenshots/3-drive.jpg` (79 KiB) | Driving north up the neon avenue, 108 km/h |
-| `screenshots/4-chase.jpg` (75 KiB) | 3 wanted stars, two NBPD units ramming the player |
+| `screenshots/1-start.jpg` (108 KiB) | Cover: heli chase at dusk — the NBPD helicopter overhead with its spotlight, 3 wanted stars, two police cars flanking the player's car, mission tracker and $2,400 / $5,000 goal bar |
+| `screenshots/2-play.jpg` (74 KiB) | Mid-robbery on the first mission: Rex in the gold ring at Casa Oro, robbery bar ~55%, mission tracker, goal bar, minimap with mission "1" |
+| `screenshots/3-drive.jpg` (78 KiB) | Driving up the neon avenue at 96 km/h with traffic ahead to thread through |
+| `screenshots/4-chase.jpg` (75 KiB) | On foot on the NEON BAY PIER boardwalk, ocean on both sides, sign lit |
 
 ## Verification (2026-11-19, headless Chromium + SwiftShader WebGL)
 
-- `node tools/shoot.mjs` — **ALL OK**. All four `?shot=` pages
-  reach `__shotReady` with 0 console errors, 0 page errors and
-  0 failed requests. The live playtest proves the loop runs: title
-  screen → Enter starts the game → W walks the player forward,
-  game time advances and HUD cash renders. (SwiftShader manages
-  only ~1.7 fps on this VM — a software-renderer artifact. A single
-  `render()` measures 2–42 ms and the scene is ~230 draw calls /
-  ~12k triangles, trivial for hardware GL.)
-- `node tools/function-test.mjs` — **11/11 PASS, 0 errors**.
-  Robbery pays and raises wanted to 2; police spawn while wanted;
-  carjack enters the car and adds a star; the car accelerates past
-  30 m/s; exit car works; a punch knocks a ped down and adds a star;
-  a cash bag pays +$100; the win fires at $5,000; BUSTED by police
-  touch halves cash ($1,200 → $600); WASTED at HP 0.
-- `node tools/fps.mjs` — reports an FPS number from a 5 s
-  headless run after Enter starts the game.
+Round 3 baseline (kept): `node tools/shoot.mjs` — **ALL OK**. All
+four `?shot=` pages reach `__shotReady` with 0 console errors,
+0 page errors and 0 failed requests. The live playtest proves the
+loop runs: title screen → Enter starts the game → W walks the
+player forward, game time advances and HUD cash renders.
+(SwiftShader manages only ~1.7 fps on this VM — a software-renderer
+artifact. A single `render()` measures 2–42 ms and the scene is
+~230 draw calls / ~12k triangles, trivial for hardware GL.)
+
+### Round 4 (2026-11-19)
+
+- `node tools/shoot.mjs` — **ALL OK**. All four shots are
+  1280×720, 74–108 KiB, 0 errors, and the harness now asserts the
+  JPEG dimensions from the file and that the mission tracker and
+  goal bar are on screen in every shot (1-start: MISSION 1/3 — The
+  Gold Touch, $2,400 / $5,000; 2-play: robbery in progress;
+  3-drive: 96 km/h with traffic; 4-chase: on the pier). The
+  playtest still passes (title → play, W walks, time advances,
+  HUD cash `$0` renders).
+- `node tools/function-test.mjs` — **20/20 PASS, 0 errors**. The
+  11 round-3 checks still pass, plus 9 new ones: the mission chain
+  gates robbery to the current job only (the bank ring does nothing
+  while job 1 is open) and pays the $150 bonus on completion
+  (cash $2,740 after the jewelers job); the helicopter spawns at
+  3 stars and leaves at 0; traffic keeps its spacing over 600
+  steps (min pairwise 26.82 m) and stops for the player in the road
+  (min centre distance 10.2 m); Rex walks the pier from z 150 to
+  z 197; the HUD goal bar reads "$1,200 / $5,000" at 24% with the
+  mission tracker beside it; the mouse wheel zooms and the wheel
+  delta clears each frame; sound is headless-safe and footsteps
+  fire 6 times while walking, 0 times idle; toasts show their text.
+- `node tools/fps.mjs` — fps 1.6 in SwiftShader, game clock
+  0.4 s over 5 s of wall time, single `render()` 8.4 ms. The
+  per-frame render cost is low; the headless number is the software
+  rasterizer, not the game.
+- `MAKEFUN_OUTPUT_DIR=out node main.ts` — dossier builds cleanly
+  (576,164 bytes, cover 1-start.jpg, 4 JPEGs, 15 source files +
+  vendored three.js); every gate limit in
+  `competition.yaml`'s reference/gate.json passes (see above).
+  `grade-local` cannot run the sealed gate locally — the kit
+  states the scorer is not published and the house grades it from
+  its competition directory — so the gate was verified against the
+  built dossier instead, and the judge heats run on the server
+  after submission.
 
 ## Problems found while testing, and the fixes
 
@@ -177,14 +233,51 @@ paints twice and sets `window.__shotReady`. All four use
    lamp bulbs instead), and road markings, slabs, lamps and palms
    merged into InstancedMeshes — 501 down to 230 draw calls.
 
+### Round 4
+
+5. **Toasts rendered empty.** `hud.toast()` had lost its
+   `textContent` assignment in an earlier edit, so toasts showed as
+   empty boxes. Fix: the line restored; a function-test now asserts
+   a toast's text is really in the DOM.
+6. **Ocean invisible.** The ocean plane sat under the ground plane,
+   so the whole south side read as a black void. Fix: ocean raised
+   above the ground plane, still below the sand.
+7. **Helicopter out of frame.** At 30 m altitude the heli sat above
+   the chase camera's top edge — only the beam showed. Fix:
+   altitude 15 m, and the camera-pitch clamp lowered so a staged
+   level camera is not overridden. A screen-projection probe
+   confirmed the airframe now sits clear of the mission panel.
+8. **Spotlight too dominant.** The beam cone and ground pool were
+   wide and bright enough to wash the frame out from the low
+   camera. Fix: cone slimmed (0.3 → 3.5 m, opacity 0.12), pool
+   4 m / 0.25.
+9. **Pier sign clipped.** "NEON BAY PIER" at bold 40 px was wider
+   than its 256 px canvas, so the N and R were cut in the texture
+   itself. Fix: the sign texture shrinks its font until the text
+   fits, and the sign posts moved outside the sign's width.
+10. **Cover composition.** Police cars placed behind the player
+    ended up dead-centre in front of the camera, blocking the frame,
+    and a traffic car sat right behind it. Fix: cops flank wide,
+    traffic and parked cars moved far up-map in the `start` staging.
+11. **Traffic head-on deadlock.** Lanes were drawn independently of
+    direction, so two cars could face each other in one lane and
+    stall forever. Fix: right-hand-traffic lanes derived from axis
+    and direction, on spawn, on turns and on edge U-turns.
+12. **Toast expiry vs slow renders.** The AIR SUPPORT toast fired
+    at heli spawn, two slow SwiftShader renders before the
+    screenshot, and expired in between. Fix: toasts last 5 s
+    instead of 3.2 s, and the `start` staging tops the toast up only
+    if it is gone, so the cover shows it exactly once.
+
 ## Known weaknesses
 
 - No real shadow maps — dropped for performance, as above. The scene
   is flatter than a shadowed one on a real GPU, though the buildings
   still read well at dusk.
-- Traffic AI is simple lane-following with random turns at
-  intersections; cars can overlap each other there and never avoid
-  the player.
-- No engine or skid audio beyond the synth hum; no music.
-- The start-screen camera orbits downtown in a slow circle; the beach
-  and ocean are only visible from the south side.
+- The helicopter is visual only: it orbits and spotlights the
+  player but never rams, busts or damages — the ground units still
+  do the catching.
+- The music loop is a simple four-chord sequencer; it sets the mood
+  but does not react to chases or robberies.
+- The only save is the best-cash total in localStorage; there is no
+  mid-run save or load.

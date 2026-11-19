@@ -59,6 +59,12 @@ const server = createServer(async (req, res) => {
     reply(res, 400, 'bad request');
     return;
   }
+  // Health probe for the test harnesses: answers without touching game/.
+  if (pathname === '/__health') {
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: true, game: 'NEON BAY' }));
+    return;
+  }
   if (pathname.endsWith('/')) pathname += 'index.html';
 
   // Resolve inside game/ and reject anything that escapes it.

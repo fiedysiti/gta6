@@ -19,3 +19,6 @@ export function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
 
 // Random float in [lo, hi).
 export function range(rng, lo, hi) { return lo + rng() * (hi - lo); }
+
+// Returns true with probability p, drawing from the given rng.
+export function chance(rng, p) { return rng() < p; }

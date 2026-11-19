@@ -3,6 +3,10 @@
 // progress, toasts, and the title / pause / BUSTED / WASTED / win screens.
 // The game updates this from render(), so staged screenshots show the
 // same HUD a live player sees.
+//
+// Round 4 — goal bar + mission tracker: a gold $X / $5,000 progress bar
+// under the cash panel, and a tracker under the objective naming the
+// current job of the 3-job chain (read from s.missions).
 
 import { CFG } from './config.js';
 
@@ -11,11 +15,16 @@ const CSS = `
 #nb-hud > div, #nb-hud > canvas { position: absolute; }
 #nb-hud .panel { position: absolute; background: rgba(12, 8, 24, 0.62); border: 1px solid rgba(255, 210, 61, 0.35); border-radius: 10px; padding: 8px 12px; }
 #hud-cash { top: 14px; left: 14px; font-size: 26px; font-weight: bold; color: #7dff8a; text-shadow: 0 2px 6px #000; }
-#hud-stars { top: 58px; left: 14px; font-size: 20px; letter-spacing: 3px; color: #ffd23d; text-shadow: 0 2px 6px #000; }
-#hud-hp { top: 92px; left: 14px; width: 170px; height: 12px; background: rgba(0,0,0,0.55); border-radius: 6px; overflow: hidden; }
+#hud-goal { top: 66px; left: 14px; width: 170px; }
+#hud-goal-text { font-size: 12px; font-weight: bold; color: #ffd23d; text-shadow: 0 1px 4px #000; margin-bottom: 3px; }
+#hud-goal-track { height: 10px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,210,61,0.35); border-radius: 6px; overflow: hidden; }
+#hud-goal-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #e0a800, #ffd23d); }
+#hud-stars { top: 100px; left: 14px; font-size: 20px; letter-spacing: 3px; color: #ffd23d; text-shadow: 0 2px 6px #000; }
+#hud-hp { top: 130px; left: 14px; width: 170px; height: 12px; background: rgba(0,0,0,0.55); border-radius: 6px; overflow: hidden; }
 #hud-hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #37d67a, #7dff8a); }
-#hud-speed { top: 112px; left: 14px; font-size: 15px; color: #cfe8ff; text-shadow: 0 1px 4px #000; }
+#hud-speed { top: 150px; left: 14px; font-size: 15px; color: #cfe8ff; text-shadow: 0 1px 4px #000; }
 #hud-objective { top: 14px; left: 50%; transform: translateX(-50%); font-size: 15px; text-align: center; color: #ffe9a8; text-shadow: 0 1px 4px #000; }
+#hud-mission { top: 58px; left: 50%; transform: translateX(-50%); font-size: 14px; text-align: center; color: #ffd23d; text-shadow: 0 1px 4px #000; white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis; }
 #hud-rob { top: 150px; left: 50%; transform: translateX(-50%); width: 260px; height: 14px; background: rgba(0,0,0,0.6); border: 1px solid #ffd23d; border-radius: 7px; overflow: hidden; display: none; }
 #hud-rob-fill { height: 100%; width: 0%; background: #ffd23d; }
 #hud-hint { bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,0.75); text-shadow: 0 1px 3px #000; white-space: nowrap; }
@@ -40,10 +49,12 @@ export function createHud() {
   hud.id = 'nb-hud';
   hud.innerHTML = `
     <div class="panel" id="hud-cash">$0</div>
+    <div id="hud-goal"><div id="hud-goal-text">$0 / $5,000</div><div id="hud-goal-track"><div id="hud-goal-fill"></div></div></div>
     <div id="hud-stars"></div>
     <div id="hud-hp"><div id="hud-hp-fill"></div></div>
     <div id="hud-speed"></div>
     <div class="panel" id="hud-objective"></div>
+    <div class="panel" id="hud-mission"></div>
     <div id="hud-rob"><div id="hud-rob-fill"></div></div>
     <div id="hud-toasts"></div>
     <div id="hud-hint">WASD move &middot; Shift sprint &middot; E enter car / hold to rob &middot; F punch &middot; Drag mouse to look &middot; P pause &middot; M mute</div>
@@ -64,6 +75,8 @@ export function createHud() {
     <p>Rex Marlowe, wheelman new to the sun-soaked coastal city of Neon Bay,
     has to clear <b>$5,000</b> before the NBPD catches him. Rob the jewelers,
     the bank and the mini-mart, grab the cash bags — and mind the stars.</p>
+    <p>Three jobs, in order: <b>The Gold Touch</b>, <b>The Vault Job</b> and
+    <b>The Quick Score</b> — each job pays a $150 bonus on top of the take.</p>
     <p class="keys">WASD move / drive &middot; Shift sprint &middot; E enter car, hold E to rob &middot; F punch &middot; Mouse drag camera &middot; P pause &middot; M mute</p>
     <p class="big">Press ENTER to start</p>
     <p id="title-best"></p>`);
@@ -95,11 +108,16 @@ export function createHud() {
       t.className = 'toast';
       t.textContent = msg;
       box.appendChild(t);
-      setTimeout(() => t.remove(), 3200);
+      // 5 s, not 3.2: toasts carry the game's feedback (payouts, busts,
+      // air support) and 3.2 s is gone before a driving player reads
+      // one — it also lets staged screenshots keep the toast on screen.
+      setTimeout(() => t.remove(), 5000);
       while (box.children.length > 3) box.firstChild.remove();
     },
     update(s) {
       el('hud-cash').textContent = fmt(s.cash);
+      el('hud-goal-text').textContent = `${fmt(s.cash)} / ${fmt(CFG.goalCash)}`;
+      el('hud-goal-fill').style.width = Math.min(100, Math.max(0, (s.cash / CFG.goalCash) * 100)) + '%';
       el('hud-stars').textContent = '★'.repeat(s.wanted) + '☆'.repeat(CFG.maxWanted - s.wanted);
       el('hud-hp-fill').style.width = Math.max(0, s.hp) + '%';
       el('hud-hp-fill').style.background = s.hp > 40
@@ -113,6 +131,24 @@ export function createHud() {
       el('hud-objective').textContent = toGo > 0
         ? `Score $${CFG.goalCash.toLocaleString('en-US')} — ${fmt(toGo)} to go`
         : 'Score complete!';
+      const missionEl = el('hud-mission');
+      const chain = s.missions && Array.isArray(s.missions.chain) ? s.missions.chain : null;
+      // Hide the tracker entirely if the state carries no chain (e.g. a
+      // bare test state) instead of showing an empty bordered box.
+      missionEl.style.display = chain ? '' : 'none';
+      if (chain) {
+        const idx = s.missions.currentIndex || 0;
+        if (idx < chain.length) {
+          const m = chain[idx];
+          const target = (s.missions.targets || []).find((t) => t.id === m.targetId);
+          const targetName = target ? target.name : m.targetId;
+          missionEl.textContent = `MISSION ${idx + 1}/3 — ${m.name}: ${targetName}`;
+        } else {
+          missionEl.textContent = `All jobs done — grab bags to reach ${fmt(CFG.goalCash)}`;
+        }
+      } else {
+        missionEl.textContent = '';
+      }
       const rob = el('hud-rob');
       if (s.robTarget && s.robTarget.progress > 0.01) {
         rob.style.display = 'block';

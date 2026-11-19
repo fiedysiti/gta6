@@ -39,6 +39,8 @@ export const CFG = {
   // Traffic and pedestrians
   trafficCount: 7,
   trafficSpeed: [7, 12],
+  trafficAvoidDist: 14, // a traffic car brakes for anything this far ahead in its lane
+  trafficMinGap: 7.5, // minimum bumper gap it will hold behind another car
   parkedCount: 4,
   pedCount: 12,
   pedWalk: 1.3,
@@ -52,6 +54,17 @@ export const CFG = {
   policeTopSpeed: 15,
   maxPolice: 4,
 
+  // Police helicopter: joins the chase once the heat is serious.
+  // Altitude 15 (not 30): the chase camera looks down 23.5° with a 62°
+  // FOV, so a heli at 30 m sits above the top of the frame — at 15 m
+  // the airframe itself is visible above the player's car, clear of
+  // the mission-tracker panel, and the spotlight beam still reads
+  // from the ground. Low and loud, the way a pursuit heli should be.
+  heliMinWanted: 3,
+  heliOrbit: 26, // metres out from the player as it circles
+  heliAltitude: 15, // metres up
+  heliAngularSpeed: 0.35, // radians per second around the player
+
   // Robbery
   robSeconds: 3, // hold E this long inside a ring
   robRange: 4.5,
@@ -59,6 +72,18 @@ export const CFG = {
   punchCooldown: 0.6,
   bagRange: 2.2,
   carjackRange: 4.2,
+  missionBonus: 150, // extra cash for finishing one job of the chain
+
+  // Round 4 sound: procedural music loop + skid threshold.
+  musicBpm: 112,
+  musicVolume: 0.05,
+  skidSpeed: 14, // skids only above this speed while steering hard
+
+  // Boardwalk: the wooden pier off the south beach, over the ocean.
+  pierX: 0,
+  pierWidth: 10,
+  pierStartZ: 148,
+  pierEndZ: 192,
 
   // Player state
   maxHp: 100,

@@ -1,9 +1,12 @@
 // Recovery note: translates raw keys and mouse drags into the clean per-frame input the game loop actually trusts.
-// Keyboard + mouse-drag input. The game loop reads a fresh snapshot each
-// frame; action keys (E, F, Enter, P, Esc, M) are edge-triggered through
-// a `pressed` set that is cleared after the frame consumes it, so holding
-// a key never double-fires an action. Held state (WASD, Shift, E) is
-// exposed separately for continuous movement and robbery holds.
+// Keyboard + mouse-drag input, plus mouse-wheel camera zoom. The game
+// loop reads a fresh snapshot each frame; action keys (E, F, H, Enter,
+// P, Esc, M) are edge-triggered through a `pressed` set that is cleared
+// after the frame consumes it, so holding a key never double-fires an
+// action. Held state (WASD, Shift, E) is exposed separately for
+// continuous movement and robbery holds. The wheel accumulates into
+// `wheelDY` (clamped per event, cleared by endFrame) for camera zoom;
+// H is the car horn, read by the game loop as pressed.has('KeyH').
 
 const MOVE_KEYS = {
   KeyW: { x: 0, y: 1 }, KeyS: { x: 0, y: -1 },
@@ -18,6 +21,7 @@ export function createInput(canvas) {
   let dragging = false;
   let lastX = 0, lastY = 0;
   let dragDX = 0, dragDY = 0;
+  let wheelDY = 0;
 
   function onKeyDown(e) {
     if (e.repeat) return;
@@ -27,7 +31,7 @@ export function createInput(canvas) {
     if (e.code in MOVE_KEYS || e.code === 'Space') e.preventDefault();
   }
   function onKeyUp(e) { keys.delete(e.code); }
-  function onBlur() { keys.clear(); dragging = false; }
+  function onBlur() { keys.clear(); dragging = false; wheelDY = 0; }
 
   function onMouseDown(e) {
     dragging = true; lastX = e.clientX; lastY = e.clientY;
@@ -39,11 +43,18 @@ export function createInput(canvas) {
     lastX = e.clientX; lastY = e.clientY;
   }
   function onMouseUp() { dragging = false; }
+  function onWheel(e) {
+    // Wheel zoom: accumulate, clamped per event so one fast flick
+    // cannot jump the camera. preventDefault stops the page scrolling.
+    e.preventDefault();
+    wheelDY += Math.max(-120, Math.min(120, e.deltaY));
+  }
 
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);
   canvas.addEventListener('mousedown', onMouseDown);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
   window.addEventListener('mousemove', onMouseMove);
   window.addEventListener('mouseup', onMouseUp);
 
@@ -61,12 +72,12 @@ export function createInput(canvas) {
       sprint: keys.has('ShiftLeft') || keys.has('ShiftRight'),
       holdingE: keys.has('KeyE'),
       pressed: new Set(pressed),
-      dragDX, dragDY,
+      dragDX, dragDY, wheelDY,
     };
   }
   function endFrame() {
     pressed.clear();
-    dragDX = 0; dragDY = 0;
+    dragDX = 0; dragDY = 0; wheelDY = 0;
   }
   return { snapshot, endFrame };
 }
