@@ -1,5 +1,8 @@
 # NEON BAY — an open-world crime game
 
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/fiedysiti/gta6/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/fiedysiti/gta6/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![make.fun bounty](https://img.shields.io/badge/make.fun-gta6--01-ff5ea8)](https://make.fun/bounty/gta6-01)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![three.js](https://img.shields.io/badge/three.js-r152-049ef4)](https://threejs.org)
