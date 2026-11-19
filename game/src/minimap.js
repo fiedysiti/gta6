@@ -1,60 +1,74 @@
-// 2D top-down minimap on a small canvas: roads, blocks, ocean, player arrow,
-// traffic (yellow), police (red/blue), mission $ markers (gold), pickups (green).
-import { CITY_HALF, ROAD_XS, ROAD_ZS } from './config.js';
+// Top-down minimap on a 180 px canvas: roads, blocks, ocean, the player
+// arrow, traffic (yellow), police (flashing red/blue), robbery `$`
+// markers and cash bags (green). Drawn from the same state the game
+// simulates, so it can never disagree with the world.
 
-export function drawMinimap(canvas, state) {
+import { CFG } from './config.js';
+
+const SIZE = 180;
+// World spans -170 .. +170; the ocean strip lives past +136.
+function toMap(v) { return ((v + 170) / 340) * SIZE; }
+
+export function drawMinimap(canvas, s) {
   const g = canvas.getContext('2d');
-  const S = canvas.width, H = CITY_HALF + 30;
-  const to = (x, z) => [(x / H + 1) / 2 * S, (z / H + 1) / 2 * S];
-  g.clearRect(0, 0, S, S);
-  g.fillStyle = '#17131f'; g.fillRect(0, 0, S, S);
-  // Ocean strip (south edge, bottom of the map).
-  g.fillStyle = '#1e6f8e';
-  const [, oy] = to(0, CITY_HALF);
-  g.fillRect(0, oy, S, S - oy);
+  g.clearRect(0, 0, SIZE, SIZE);
+  // Ocean along the south edge.
+  g.fillStyle = '#0e4d6e';
+  g.fillRect(0, toMap(136), SIZE, SIZE - toMap(136));
   // Blocks.
-  g.fillStyle = '#3a3345';
-  for (const bx of [-104, -52, 0, 52, 104]) for (const bz of [-104, -52, 0, 52, 104]) {
-    const [x, y] = to(bx - 20, bz - 20);
-    g.fillRect(x, y, 40 / (2 * H) * S, 40 / (2 * H) * S);
+  g.fillStyle = '#2c2838';
+  for (const bx of CFG.blockCenters) {
+    for (const bz of CFG.blockCenters) {
+      g.fillRect(toMap(bx - 20), toMap(bz - 20), 40 / 340 * SIZE, 40 / 340 * SIZE);
+    }
   }
   // Roads.
-  g.strokeStyle = '#6b6478'; g.lineWidth = 3;
-  for (const x of ROAD_XS) { const [px] = to(x, 0); g.beginPath(); g.moveTo(px, 0); g.lineTo(px, S); g.stroke(); }
-  for (const z of ROAD_ZS) { const [, py] = to(0, z); g.beginPath(); g.moveTo(0, py); g.lineTo(S, py); g.stroke(); }
-  // Pickups.
-  g.fillStyle = '#2fae5f';
-  for (const b of state.missions.pickups) {
-    if (b.taken) continue;
-    const [x, y] = to(b.x, b.z); g.fillRect(x - 2, y - 2, 4, 4);
+  g.strokeStyle = '#55555f';
+  g.lineWidth = 12 / 340 * SIZE;
+  for (const c of CFG.roadCenters) {
+    g.beginPath(); g.moveTo(toMap(c), 0); g.lineTo(toMap(c), SIZE); g.stroke();
+    g.beginPath(); g.moveTo(0, toMap(c)); g.lineTo(SIZE, toMap(c)); g.stroke();
   }
-  // Mission markers.
-  g.font = 'bold 13px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  for (const m of state.missions.missions) {
-    if (m.robbed) continue;
-    const [x, y] = to(m.x, m.z);
-    g.fillStyle = '#ffd23f';
-    g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#17131f'; g.fillText('$', x, y + 0.5);
+  // Cash bags.
+  g.fillStyle = '#2fd35f';
+  for (const b of s.missions.pickups) {
+    if (b.taken) continue;
+    g.beginPath(); g.arc(toMap(b.x), toMap(b.z), 2.5, 0, Math.PI * 2); g.fill();
+  }
+  // Robbery markers.
+  g.font = 'bold 11px Arial';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  for (const t of s.missions.targets) {
+    if (t.robbed) continue;
+    g.fillStyle = '#ffd23d';
+    g.fillText('$', toMap(t.x), toMap(t.z));
   }
   // Traffic.
-  g.fillStyle = '#ffe27a';
-  for (const c of state.traffic) { const [x, y] = to(c.pos.x, c.pos.z); g.fillRect(x - 2, y - 2, 4, 4); }
-  // Police.
-  for (const c of state.police) {
-    const [x, y] = to(c.pos.x, c.pos.z);
-    g.fillStyle = '#ff4040'; g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = '#4080ff'; g.lineWidth = 2; g.stroke();
+  g.fillStyle = '#ffe14d';
+  for (const c of s.traffic) {
+    g.fillRect(toMap(c.pos.x) - 2, toMap(c.pos.z) - 2, 4, 4);
   }
-  // Player arrow.
-  const p = state.player;
-  const px = p.onFoot ? p.pos.x : p.car.pos.x;
-  const pz = p.onFoot ? p.pos.z : p.car.pos.z;
-  const heading = p.onFoot ? p.heading : p.car.heading;
-  const [x, y] = to(px, pz);
-  g.save(); g.translate(x, y); g.rotate(heading);
+  for (const c of s.parked) {
+    g.fillStyle = '#9a9aa8';
+    g.fillRect(toMap(c.pos.x) - 2, toMap(c.pos.z) - 2, 4, 4);
+  }
+  // Police, flashing with wall time.
+  const red = Math.floor(performance.now() / 300) % 2 === 0;
+  g.fillStyle = red ? '#ff3333' : '#3388ff';
+  for (const u of s.police) {
+    g.beginPath(); g.arc(toMap(u.pos.x), toMap(u.pos.z), 3.5, 0, Math.PI * 2); g.fill();
+  }
+  // Player arrow, rotated to the facing angle.
+  const px = toMap(s.player.pos.x), pz = toMap(s.player.pos.z);
+  g.save();
+  g.translate(px, pz);
+  // Canvas y points down, so the map direction of the facing angle
+  // (sin a, cos a) needs a rotation of PI - a for an up-drawn arrow.
+  g.rotate(Math.PI - s.player.angle);
   g.fillStyle = '#ffffff';
-  g.beginPath(); g.moveTo(0, -7); g.lineTo(5, 6); g.lineTo(-5, 6); g.closePath(); g.fill();
+  g.beginPath();
+  g.moveTo(0, -7); g.lineTo(5, 5); g.lineTo(0, 2); g.lineTo(-5, 5); g.closePath();
+  g.fill();
   g.restore();
-  g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1; g.strokeRect(0.5, 0.5, S - 1, S - 1);
 }

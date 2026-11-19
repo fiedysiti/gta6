@@ -1,68 +1,161 @@
-// Rex Marlowe on foot: stylised box figure, WASD movement relative to camera yaw,
-// building collision, punch, enter/exit cars.
+// On-foot figures: Rex Marlowe (the player) and the twelve pedestrians.
+// Both share the same walk-cycle box figure and the same building
+// push-out; pedestrians add wandering and fleeing, the player adds
+// camera-relative WASD movement and sprinting.
+
 import { THREE } from './three-shim.js';
-import { PLAYER_CFG } from './config.js';
-import { resolveCollisions } from './city.js';
+import { CFG, clamp } from './config.js';
+import { pushOutOfBuildings, sampleClearSpot } from './city.js';
+import { range } from './random.js';
 
-const SKIN = 0xd9a066, JACKET = 0x2fa8a0, PANTS = 0x2c3242, SHOE = 0x1c1c22;
+const JACKET = 0x1fb6a6;
+const SKIN = 0xe8b88a;
+const PANTS = 0x2b3245;
 
-export function createPlayerMesh() {
+function buildFigure(scene, jacket, pants) {
   const g = new THREE.Group();
   const mat = (c) => new THREE.MeshLambertMaterial({ color: c });
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.85, 0.4), mat(JACKET));
-  torso.position.y = 1.15; torso.castShadow = true; g.add(torso);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), mat(SKIN));
-  head.position.y = 1.82; head.castShadow = true; g.add(head);
-  const hair = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.14, 0.46), mat(0x1a1210));
-  hair.position.y = 2.05; g.add(hair);
-  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.75, 0.32), mat(PANTS));
-  legL.position.set(-0.19, 0.38, 0); legL.castShadow = true; g.add(legL);
-  const legR = legL.clone(); legR.position.x = 0.19; g.add(legR);
-  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.7, 0.26), mat(JACKET));
-  armL.position.set(-0.48, 1.18, 0); g.add(armL);
-  const armR = armL.clone(); armR.position.x = 0.48; g.add(armR);
-  g.userData = { legL, legR, armL, armR };
-  return g;
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.85, 0.4), mat(jacket));
+  torso.position.y = 1.08;
+  g.add(torso);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.42, 0.4), mat(SKIN));
+  head.position.y = 1.75;
+  g.add(head);
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.72, 0.3), mat(pants));
+  legL.position.set(-0.18, 0.36, 0);
+  g.add(legL);
+  const legR = legL.clone();
+  legR.position.x = 0.18;
+  g.add(legR);
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.7, 0.24), mat(jacket));
+  armL.position.set(-0.48, 1.1, 0);
+  g.add(armL);
+  const armR = armL.clone();
+  armR.position.x = 0.48;
+  g.add(armR);
+  scene.add(g);
+  return { group: g, legL, legR, armL, armR };
 }
 
-export function createPedMesh(rng) {
-  const g = createPlayerMesh();
-  const jacket = [0xc94f4f, 0x4f7ac9, 0x7ac94f, 0xc9a44f, 0x9a4fc9, 0xd9d9d9][Math.floor(rng() * 6)];
-  g.children[0].material = new THREE.MeshLambertMaterial({ color: jacket });
-  g.children[4].material = new THREE.MeshLambertMaterial({ color: jacket });
-  g.children[5].material = new THREE.MeshLambertMaterial({ color: jacket });
-  g.scale.setScalar(0.95 + rng() * 0.12);
-  return g;
+export function createPlayer(scene) {
+  const fig = buildFigure(scene, JACKET, PANTS);
+  return {
+    pos: { x: CFG.spawn.x, z: CFG.spawn.z },
+    angle: Math.PI, // facing north, into the city from the beach
+    onFoot: true,
+    car: null,
+    mesh: fig.group,
+    parts: fig,
+    walkPhase: 0,
+    moving: false,
+  };
 }
 
-// Move on foot. `move` is {x, y} in camera space (y = forward). Returns distance moved.
-export function updateOnFoot(state, move, sprint, dt) {
-  const p = state.player;
-  const speed = sprint ? PLAYER_CFG.sprint : PLAYER_CFG.walk;
-  const yaw = state.camYaw;
-  const mx = Math.sin(yaw) * move.y + Math.cos(yaw) * move.x;
-  const mz = Math.cos(yaw) * move.y - Math.sin(yaw) * move.x;
+// Move on foot, relative to the camera yaw. Forward on screen is away
+// from the camera: (-sin yaw, -cos yaw) in world xz.
+export function updatePlayerOnFoot(player, input, dt, colliders, camYaw) {
+  const speed = input.sprint ? CFG.sprintSpeed : CFG.walkSpeed;
+  const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
+  const rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
+  let mx = fx * input.axis.y + rx * input.axis.x;
+  let mz = fz * input.axis.y + rz * input.axis.x;
   const len = Math.hypot(mx, mz);
-  let moved = 0;
-  if (len > 0.01) {
-    const nx = mx / len, nz = mz / len;
-    p.pos.x += nx * speed * dt; p.pos.z += nz * speed * dt;
-    p.pos.x = Math.max(-170, Math.min(170, p.pos.x));
-    p.pos.z = Math.max(-170, Math.min(172, p.pos.z));
-    const target = Math.atan2(nx, nz);
-    let d = target - p.heading;
-    while (d > Math.PI) d -= 2 * Math.PI;
-    while (d < -Math.PI) d += 2 * Math.PI;
-    p.heading += d * Math.min(1, dt * 12);
-    moved = speed * dt;
-    p.walkPhase += dt * (sprint ? 14 : 9);
+  player.moving = len > 0.01;
+  if (player.moving) {
+    mx /= len; mz /= len;
+    player.pos.x += mx * speed * dt;
+    player.pos.z += mz * speed * dt;
+    player.angle = Math.atan2(mx, mz);
+    player.walkPhase += dt * speed * 1.7;
   }
-  resolveCollisions(p.pos, PLAYER_CFG.radius, state.city.colliders);
-  const u = p.mesh.userData;
-  const swing = len > 0.01 ? Math.sin(p.walkPhase) * 0.55 : 0;
-  u.legL.rotation.x = swing; u.legR.rotation.x = -swing;
-  u.armL.rotation.x = -swing * 0.8; u.armR.rotation.x = swing * 0.8;
-  p.mesh.position.set(p.pos.x, 0, p.pos.z);
-  p.mesh.rotation.y = p.heading;
-  return moved;
+  player.pos.x = clamp(player.pos.x, -168, 168);
+  player.pos.z = clamp(player.pos.z, -168, 166);
+  pushOutOfBuildings(player.pos, CFG.playerRadius, colliders);
+  player.mesh.position.set(player.pos.x, 0, player.pos.z);
+  player.mesh.rotation.y = player.angle;
+  const swing = player.moving ? Math.sin(player.walkPhase) * 0.55 : 0;
+  player.parts.legL.rotation.x = swing;
+  player.parts.legR.rotation.x = -swing;
+  player.parts.armL.rotation.x = -swing * 0.8;
+  player.parts.armR.rotation.x = swing * 0.8;
+}
+
+// ---- Pedestrians -------------------------------------------------------
+
+const PED_JACKETS = [0xd94f6a, 0x4f7dd9, 0xe0a83c, 0x7dd94f, 0x9a5fd9, 0xd9d9d9];
+
+export function createPedestrians(scene, rng, colliders) {
+  const peds = [];
+  for (let i = 0; i < CFG.pedCount; i++) {
+    const spot = sampleClearSpot(rng, colliders, 2);
+    const fig = buildFigure(scene, PED_JACKETS[i % PED_JACKETS.length], 0x333a4d);
+    fig.group.scale.setScalar(0.94 + rng() * 0.12);
+    peds.push({
+      pos: { x: spot.x, z: spot.z },
+      angle: rng() * Math.PI * 2,
+      speed: 0,
+      target: { x: spot.x, z: spot.z },
+      fallen: 0,
+      mesh: fig.group,
+      parts: fig,
+      walkPhase: rng() * 6,
+      retargetIn: rng() * 2,
+    });
+  }
+  return peds;
+}
+
+export function updatePedestrians(peds, dt, colliders, rng, threat, wanted) {
+  for (const p of peds) {
+    if (p.fallen > 0) {
+      p.fallen -= dt;
+      p.mesh.rotation.z = p.fallen > 0 ? Math.PI / 2 : 0;
+      if (p.fallen <= 0) p.mesh.rotation.z = 0;
+      continue;
+    }
+    // Flee the player when there is heat, or any car that gets close.
+    let run = null;
+    if (wanted > 0 && threat) {
+      const d2 = (p.pos.x - threat.x) ** 2 + (p.pos.z - threat.z) ** 2;
+      if (d2 < 30 * 30) run = threat;
+    }
+    let tx, tz, spd;
+    if (run) {
+      const dx = p.pos.x - run.x, dz = p.pos.z - run.z;
+      const d = Math.hypot(dx, dz) || 1;
+      tx = p.pos.x + (dx / d) * 12;
+      tz = p.pos.z + (dz / d) * 12;
+      spd = CFG.pedFlee;
+    } else {
+      p.retargetIn -= dt;
+      const arrived = Math.hypot(p.target.x - p.pos.x, p.target.z - p.pos.z) < 1.2;
+      if (arrived || p.retargetIn <= 0) {
+        p.retargetIn = range(rng, 3, 8);
+        const t = {
+          x: clamp(p.pos.x + range(rng, -22, 22), -132, 132),
+          z: clamp(p.pos.z + range(rng, -22, 22), -132, 132),
+        };
+        pushOutOfBuildings(t, 1, colliders);
+        p.target = t;
+      }
+      tx = p.target.x; tz = p.target.z;
+      spd = CFG.pedWalk;
+    }
+    const dx = tx - p.pos.x, dz = tz - p.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 0.05) {
+      p.pos.x += (dx / d) * spd * dt;
+      p.pos.z += (dz / d) * spd * dt;
+      p.angle = Math.atan2(dx, dz);
+      p.walkPhase += dt * spd * 2.2;
+    }
+    pushOutOfBuildings(p.pos, 0.55, colliders);
+    p.mesh.position.set(p.pos.x, 0, p.pos.z);
+    p.mesh.rotation.y = p.angle;
+    const swing = Math.sin(p.walkPhase) * 0.5;
+    p.parts.legL.rotation.x = swing;
+    p.parts.legR.rotation.x = -swing;
+    p.parts.armL.rotation.x = -swing * 0.7;
+    p.parts.armR.rotation.x = swing * 0.7;
+  }
 }

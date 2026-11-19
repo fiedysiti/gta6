@@ -1,75 +1,85 @@
-// Deterministic screenshot scenes behind ?shot=start|play|drive|chase (with &seed=N).
-// Each stages the real game state, simulates it forward a little, paints twice and
-// sets window.__shotReady — the frame is what real play looks like.
-import { STEP } from './config.js';
-import { makeCar } from './cars.js';
-import { spawnPolice } from './police.js';
+// Deterministic screenshot staging for ?shot=<name>&seed=1.
+// Builds on the real game (a fresh seeded world from main.js), puts it
+// in the scene each shot needs, simulates it forward a few seconds so
+// traffic, beacons and police are alive in the frame, paints twice, and
+// sets window.__shotReady. No animation loop runs in shot mode — the
+// harness drives everything from here, which is also what lets the
+// functional tests step the same game by hand.
+//
+//   start — title screen over the dusk city
+//   play  — on foot at the Casa Oro `$` beacon, HUD + minimap visible
+//   drive — driving north up the neon avenue at speed
+//   chase — three wanted stars, NBPD units closing in to ram
 
-function simulate(game, seconds, inp) {
-  const steps = Math.round(seconds / STEP);
-  for (let i = 0; i < steps; i++) {
-    game.update(STEP, inp);
-    if (game.state.screen !== 'play' && game.state.screen !== 'title') break;
-  }
-}
+import { CFG } from './config.js';
 
 const IDLE = { axis: { x: 0, y: 0 }, sprint: false, holdingE: false, pressed: new Set() };
-const DRIVE = { axis: { x: 0, y: 1 }, sprint: false, holdingE: false, pressed: new Set() };
+const FOOT_DOWN = { axis: { x: 0, y: 1 }, sprint: false, holdingE: false, pressed: new Set() };
 
-export function stageShot(name, game) {
-  const { state, scene } = game;
-  game.resetWorld();
-  state.screen = 'play';
+function step(game, n, input) {
+  for (let i = 0; i < n; i++) game.update(1 / 60, input);
+}
 
-  if (name === 'start') {
-    state.screen = 'title';
-    // Camera low over the beach looking up the neon avenue at dusk.
-    game.camera.position.set(40, 14, 175);
-    game.camera.lookAt(-20, 10, -60);
-    simulate(game, 2, IDLE);
-    game.camera.position.set(40, 14, 175);
-    game.camera.lookAt(-20, 10, -60);
-    return;
-  }
+function paint(game) {
+  game.render();
+  game.render();
+}
 
+// Put the player in a parked car (no heat — it is empty) at the given
+// spot, heading north, already rolling.
+function stageDriving(game, x, z, speed) {
+  const s = game.state;
+  const car = s.parked[0];
+  game.enterCar(car);
+  car.pos.x = x;
+  car.pos.z = z;
+  car.angle = Math.PI; // forward (sin PI, cos PI) = (0, -1): north
+  car.speed = speed;
+  car.mesh.position.set(x, 0, z);
+  car.mesh.rotation.y = Math.PI;
+  s.camYaw = 0; // camera behind, looking north up the avenue
+}
+
+export function stageShot(game, name) {
+  const s = game.state;
   if (name === 'play') {
-    // Rex on foot at the Casa Oro Jewelers $ beacon, HUD + minimap live.
-    state.player.pos = { x: -85, z: -30 };
-    state.player.heading = Math.PI;
-    state.cash = 1200;
-    state.player.mesh.position.set(-85, 0, -30);
-    simulate(game, 1.5, IDLE);
-    return;
-  }
-
-  if (name === 'drive') {
-    // Rex driving a red car north up the neon avenue, through downtown.
-    const car = makeCar(-26, 80, Math.PI, 0xd94f4f);
-    scene.add(car.mesh);
-    game.enterCar(car, false);
-    state.cash = 2400;
-    simulate(game, 3.2, DRIVE);
-    return;
-  }
-
-  if (name === 'chase') {
-    // Wanted 3 stars: Rex speeding away with three NBPD units in pursuit.
-    const car = makeCar(-26, 40, 0, 0x4f7ad9);
-    scene.add(car.mesh);
-    game.enterCar(car, false);
-    state.cash = 3650;
-    state.wanted = 3; state.wantedTimer = 20;
-    for (let i = 0; i < 3; i++) {
-      const cop = spawnPolice(scene, -26 + (i - 1) * 7, 40 + 14 + i * 6, 0);
-      state.police.push(cop);
+    game.start();
+    s.cash = 1200;
+    s.player.pos.x = -79;
+    s.player.pos.z = -30;
+    s.player.mesh.position.set(-79, 0, -30);
+    s.player.angle = -Math.PI / 2; // facing west, at the beacon
+    s.camYaw = Math.PI / 2; // camera east of Rex, looking west
+    step(game, 30, IDLE);
+    paint(game);
+  } else if (name === 'drive') {
+    game.start();
+    s.cash = 1200;
+    stageDriving(game, 26, 40, 24);
+    step(game, 90, FOOT_DOWN); // accelerate up the avenue
+    paint(game);
+  } else if (name === 'chase') {
+    game.start();
+    s.cash = 1200;
+    stageDriving(game, 26, 10, 12);
+    s.wanted = 3;
+    s.wantedTimer = CFG.decaySeconds;
+    step(game, 5, IDLE); // let the force spawn its three units
+    const cops = s.police;
+    if (cops[0]) {
+      cops[0].pos.x = 22; cops[0].pos.z = 26;
+      cops[0].angle = Math.PI; cops[0].speed = 14;
     }
-    // One unit coming the other way, visible ahead of the player in the frame.
-    state.police.push(spawnPolice(scene, -23, -70, 0));
-    simulate(game, 1.6, DRIVE);
-    return;
+    if (cops[1]) {
+      cops[1].pos.x = 30; cops[1].pos.z = 29;
+      cops[1].angle = Math.PI; cops[1].speed = 14;
+    }
+    step(game, 150, IDLE); // coast while the NBPD closes in and rams
+    paint(game);
+  } else {
+    // 'start' and anything unknown: the title screen over the city.
+    step(game, 30, IDLE);
+    paint(game);
   }
-
-  // Unknown shot name: fall back to the title scene.
-  state.screen = 'title';
-  simulate(game, 2, IDLE);
+  window.__shotReady = true;
 }

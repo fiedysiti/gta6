@@ -1,38 +1,71 @@
-// Keyboard + mouse-drag input. Held keys are read every frame; one-shot presses
-// (E, F, Enter, P, M) are queued as edge events and taken once by the loop.
-export const KEY = { W: 'KeyW', A: 'KeyA', S: 'KeyS', D: 'KeyD', SHIFT: 'ShiftLeft' };
+// Keyboard + mouse-drag input. The game loop reads a fresh snapshot each
+// frame; action keys (E, F, Enter, P, Esc, M) are edge-triggered through
+// a `pressed` set that is cleared after the frame consumes it, so holding
+// a key never double-fires an action. Held state (WASD, Shift, E) is
+// exposed separately for continuous movement and robbery holds.
 
-export function createInput() {
-  const held = new Set();
+const MOVE_KEYS = {
+  KeyW: { x: 0, y: 1 }, KeyS: { x: 0, y: -1 },
+  KeyA: { x: -1, y: 0 }, KeyD: { x: 1, y: 0 },
+  ArrowUp: { x: 0, y: 1 }, ArrowDown: { x: 0, y: -1 },
+  ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 },
+};
+
+export function createInput(canvas) {
+  const keys = new Set();
   const pressed = new Set();
-  let dragDX = 0;
   let dragging = false;
-  let lastX = 0;
+  let lastX = 0, lastY = 0;
+  let dragDX = 0, dragDY = 0;
 
-  window.addEventListener('keydown', (e) => {
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
-    if (!e.repeat) pressed.add(e.code);
-    held.add(e.code);
-  });
-  window.addEventListener('keyup', (e) => held.delete(e.code));
-  window.addEventListener('blur', () => { held.clear(); dragging = false; });
-  window.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; });
-  window.addEventListener('pointerup', () => { dragging = false; });
-  window.addEventListener('pointermove', (e) => {
+  function onKeyDown(e) {
+    if (e.repeat) return;
+    keys.add(e.code);
+    pressed.add(e.code);
+    // Stop the page scrolling on game keys.
+    if (e.code in MOVE_KEYS || e.code === 'Space') e.preventDefault();
+  }
+  function onKeyUp(e) { keys.delete(e.code); }
+  function onBlur() { keys.clear(); dragging = false; }
+
+  function onMouseDown(e) {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+  }
+  function onMouseMove(e) {
     if (!dragging) return;
     dragDX += e.clientX - lastX;
-    lastX = e.clientX;
-  });
+    dragDY += e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+  }
+  function onMouseUp() { dragging = false; }
 
-  return {
-    held(code) { return held.has(code); },
-    axis() { // WASD / arrows as -1..1
-      const x = (held.has('KeyD') || held.has('ArrowRight') ? 1 : 0) - (held.has('KeyA') || held.has('ArrowLeft') ? 1 : 0);
-      const y = (held.has('KeyW') || held.has('ArrowUp') ? 1 : 0) - (held.has('KeyS') || held.has('ArrowDown') ? 1 : 0);
-      return { x, y };
-    },
-    sprint() { return held.has('ShiftLeft') || held.has('ShiftRight'); },
-    takePressed() { const p = new Set(pressed); pressed.clear(); return p; },
-    takeDrag() { const d = dragDX; dragDX = 0; return d; },
-  };
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', onBlur);
+  canvas.addEventListener('mousedown', onMouseDown);
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+
+  // Snapshot for this frame. Callers must call endFrame() afterwards so
+  // edge presses do not leak into the next frame.
+  function snapshot() {
+    let ax = 0, ay = 0;
+    for (const code of keys) {
+      const m = MOVE_KEYS[code];
+      if (m) { ax += m.x; ay += m.y; }
+    }
+    const len = Math.hypot(ax, ay) || 1;
+    return {
+      axis: { x: ax / len, y: ay / len },
+      sprint: keys.has('ShiftLeft') || keys.has('ShiftRight'),
+      holdingE: keys.has('KeyE'),
+      pressed: new Set(pressed),
+      dragDX, dragDY,
+    };
+  }
+  function endFrame() {
+    pressed.clear();
+    dragDX = 0; dragDY = 0;
+  }
+  return { snapshot, endFrame };
 }

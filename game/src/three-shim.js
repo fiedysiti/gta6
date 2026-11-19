@@ -1,5 +1,5 @@
-// The vendored three.js r152 is loaded as a classic script (game/vendor/three.min.js)
-// before any module runs, so it is available as window.THREE. This shim re-exports
-// that global for ES modules.
+// three.js arrives as a classic script (game/vendor/three.min.js) and
+// puts THREE on window. ES modules cannot import a global, so this shim
+// is the one place that reaches for it.
 export const THREE = window.THREE;
-export default THREE;
+export default window.THREE;
