@@ -1,3 +1,4 @@
+// Recovery note: the submission entry point — it collects the finished game and its screenshots into the dossier make.fun expects.
 // NEON BAY — gta6-01 entry point (Node 22, standard library only).
 //
 // The game is plain static files in game/ (game/index.html plus its ES

@@ -1,3 +1,4 @@
+// Recovery note: every sound in the game is synthesized here in code — engine, siren, chimes — with no audio files at all.
 // WebAudio synth sound — no audio files anywhere. Everything is an
 // oscillator or a filtered noise burst built on the fly. The context is
 // created lazily on the first user gesture (browsers block audio before

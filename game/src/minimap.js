@@ -1,3 +1,4 @@
+// Recovery note: the little top-down map in the corner, repainted every frame from live game state.
 // Top-down minimap on a 180 px canvas: roads, blocks, ocean, the player
 // arrow, traffic (yellow), police (flashing red/blue), robbery `$`
 // markers and cash bags (green). Drawn from the same state the game

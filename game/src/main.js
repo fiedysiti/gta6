@@ -1,3 +1,4 @@
+// Recovery note: the conductor — it wires the world together, steps the simulation, and decides when a run ends in a win, a bust, or worse.
 // NEON BAY — game object: builds the world, runs the loop, owns the
 // state machine (title / play / paused / busted / wasted / win) and the
 // crime + wanted + bust/waste/win rules. The test harnesses drive this

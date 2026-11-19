@@ -1,3 +1,4 @@
+// Recovery note: the one place where the game's numbers live — if a speed, price or timer ever needs tuning, it changes here.
 // NEON BAY — central tuning and layout constants.
 // Every number the rest of the game reads lives here so a balance tweak
 // never means hunting through the simulation code.

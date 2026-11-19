@@ -1,3 +1,4 @@
+// Recovery note: the NBPD heat — how pursuit cars appear, chase, ram, and finally make the bust.
 // NBPD pursuit units. One to four cars spawn while the player has heat,
 // chase the player down the roads, ram the player's car, and — on foot —
 // close in until they can make the bust. They steer straight at the

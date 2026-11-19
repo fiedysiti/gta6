@@ -1,3 +1,4 @@
+// Recovery note: everything the player reads on screen — cash, stars, health, prompts and the end screens — is drawn by this module.
 // DOM HUD: cash, wanted stars, health, speed, objective, robbery
 // progress, toasts, and the title / pause / BUSTED / WASTED / win screens.
 // The game updates this from render(), so staged screenshots show the

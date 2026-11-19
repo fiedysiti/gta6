@@ -1,3 +1,4 @@
+// Recovery note: this file is where every car in Neon Bay lives — the traffic, the parked cars, and the one the player is driving.
 // Cars: traffic that follows the road lanes, parked cars, and the arcade
 // driving model for whichever car the player is in. A car is a plain
 // object — { pos, angle, speed, mesh, kind } — so the player, the police

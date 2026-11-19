@@ -1,3 +1,4 @@
+// Recovery note: one seeded generator behind every shuffle in the game, so the same seed always rebuilds the same Neon Bay.
 // Seeded RNG (mulberry32) so a ?seed= URL always builds the same city,
 // the same traffic and the same pedestrians. Everything random in the
 // game draws from one of these, never from Math.random, except for

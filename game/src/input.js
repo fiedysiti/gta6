@@ -1,3 +1,4 @@
+// Recovery note: translates raw keys and mouse drags into the clean per-frame input the game loop actually trusts.
 // Keyboard + mouse-drag input. The game loop reads a fresh snapshot each
 // frame; action keys (E, F, Enter, P, Esc, M) are edge-triggered through
 // a `pressed` set that is cleared after the frame consumes it, so holding

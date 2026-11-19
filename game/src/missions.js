@@ -1,3 +1,4 @@
+// Recovery note: the money trail — the three robbery spots and the loose cash bags that get Rex to $5,000.
 // Missions and money: the three robbery targets with their floating `$`
 // beacons, and the eight green cash bags scattered around the city.
 // A robbery pays out once per target; bags pay $100 each on touch.

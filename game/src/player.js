@@ -1,3 +1,4 @@
+// Recovery note: Rex on foot, plus the twelve pedestrians who share his walk cycle and his habit of bouncing off walls.
 // On-foot figures: Rex Marlowe (the player) and the twelve pedestrians.
 // Both share the same walk-cycle box figure and the same building
 // push-out; pedestrians add wandering and fleeing, the player adds

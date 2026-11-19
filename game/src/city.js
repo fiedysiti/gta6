@@ -1,3 +1,4 @@
+// Recovery note: this module builds the whole city you see — streets, towers, beach and all the neon — from code alone, no image files.
 // Neon Bay itself: dusk sky, 5x5 blocks, beach and ocean to the south,
 // canvas-painted facades and neon signs, instanced lamps, palms and road
 // markings. No loaded assets — every texture is drawn on a canvas here.

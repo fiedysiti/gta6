@@ -1,3 +1,4 @@
+// Recovery note: stages each screenshot scene from the real running game, then raises the flag the harness waits for.
 // Deterministic screenshot staging for ?shot=<name>&seed=1.
 // Builds on the real game (a fresh seeded world from main.js), puts it
 // in the scene each shot needs, simulates it forward a few seconds so
